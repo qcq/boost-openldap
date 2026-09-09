@@ -153,9 +153,21 @@ private:
                 return;
             }
 
-            const int ldap_rc = ldap_result2error(
-                connection_.native_handle(), message, 0);
-            ldap_msgfree(message);
+            int ldap_rc = LDAP_OTHER;
+            const int parse_rc = ldap_parse_result(
+                connection_.native_handle(),
+                message,
+                &ldap_rc,
+                nullptr,
+                nullptr,
+                nullptr,
+                nullptr,
+                1);
+
+            if (parse_rc != LDAP_SUCCESS) {
+                complete(make_ldap_error(parse_rc), {});
+                return;
+            }
 
             bind_result result;
             result.ldap_result = ldap_rc;
