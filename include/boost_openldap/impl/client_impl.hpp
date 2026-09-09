@@ -19,9 +19,7 @@ namespace boost_openldap {
 
 struct client::implementation {
     implementation(boost::asio::io_context& io, std::string uri)
-        : connection_(io, uri.c_str())
-    {
-    }
+        : connection_(io, uri.c_str()) {}
 
     connection connection_;
 
@@ -48,9 +46,7 @@ private:
     class bind_operation : public std::enable_shared_from_this<bind_operation<Handler>> {
     public:
         bind_operation(connection& connection, Handler&& handler, bind_request request)
-            : connection_(connection), handler_(std::forward<Handler>(handler)), request_(std::move(request))
-        {
-        }
+            : connection_(connection), handler_(std::forward<Handler>(handler)), request_(std::move(request)) {}
 
         void start()
         {
@@ -62,14 +58,8 @@ private:
         void start_on_executor()
         {
             const auto ec = connection_.ensure_connected();
-            if (ec == make_error_code(errc::connection_in_progress)) {
-                wait_for_connect();
-                return;
-            }
-            if (ec) {
-                complete(ec, {});
-                return;
-            }
+            if (ec == make_error_code(errc::connection_in_progress)) { wait_for_connect(); return; }
+            if (ec) { complete(ec, {}); return; }
             submit_bind();
         }
 
@@ -79,18 +69,11 @@ private:
             connection_.descriptor().async_wait(
                 boost::asio::posix::stream_descriptor::wait_write,
                 [self](const boost::system::error_code& ec) mutable {
-                    if (ec) {
-                        self->complete(std::error_code(ec.value(), std::system_category()), {});
-                        return;
-                    }
+                    if (ec) { self->complete(std::error_code(ec.value(), std::system_category()), {}); return; }
                     const auto connect_ec = self->connection_.finish_connect();
-                    if (connect_ec == make_error_code(errc::connection_in_progress)) {
-                        self->wait_for_connect();
-                    } else if (connect_ec) {
-                        self->complete(connect_ec, {});
-                    } else {
-                        self->submit_bind();
-                    }
+                    if (connect_ec == make_error_code(errc::connection_in_progress)) self->wait_for_connect();
+                    else if (connect_ec) self->complete(connect_ec, {});
+                    else self->submit_bind();
                 });
         }
 
@@ -100,13 +83,9 @@ private:
             credential.bv_val = const_cast<char*>(request_.password.data());
             credential.bv_len = request_.password.size();
             int msgid = -1;
-            const int rc = ldap_sasl_bind(
-                connection_.native_handle(), request_.dn.c_str(), LDAP_SASL_SIMPLE,
-                &credential, nullptr, nullptr, &msgid);
-            if (rc != LDAP_SUCCESS) {
-                complete(make_ldap_error(rc), {});
-                return;
-            }
+            const int rc = ldap_sasl_bind(connection_.native_handle(), request_.dn.c_str(), LDAP_SASL_SIMPLE,
+                                          &credential, nullptr, nullptr, &msgid);
+            if (rc != LDAP_SUCCESS) { complete(make_ldap_error(rc), {}); return; }
             msgid_ = msgid;
             wait_for_result();
         }
@@ -117,11 +96,8 @@ private:
             connection_.descriptor().async_wait(
                 boost::asio::posix::stream_descriptor::wait_read,
                 [self](const boost::system::error_code& ec) mutable {
-                    if (ec) {
-                        self->complete(std::error_code(ec.value(), std::system_category()), {});
-                    } else {
-                        self->consume_result();
-                    }
+                    if (ec) self->complete(std::error_code(ec.value(), std::system_category()), {});
+                    else self->consume_result();
                 });
         }
 
@@ -130,34 +106,17 @@ private:
             LDAPMessage* message = nullptr;
             timeval timeout{0, 0};
             const int rc = ldap_result(connection_.native_handle(), msgid_, LDAP_MSG_ONE, &timeout, &message);
-            if (rc == 0) {
-                wait_for_result();
-                return;
-            }
-            if (rc == -1) {
-                complete(ldap_error_from_handle(), {});
-                return;
-            }
-            if (!message) {
-                complete(make_error_code(errc::ldap_error), {});
-                return;
-            }
+            if (rc == 0) { wait_for_result(); return; }
+            if (rc == -1) { complete(ldap_error_from_handle(), {}); return; }
+            if (!message) { complete(make_error_code(errc::ldap_error), {}); return; }
 
             int ldap_rc = LDAP_OTHER;
-            const int parse_rc = ldap_parse_result(
-                connection_.native_handle(), message, &ldap_rc,
-                nullptr, nullptr, nullptr, nullptr, 1);
-            if (parse_rc != LDAP_SUCCESS) {
-                complete(make_ldap_error(parse_rc), {});
-                return;
-            }
-
+            const int parse_rc = ldap_parse_result(connection_.native_handle(), message, &ldap_rc,
+                                                   nullptr, nullptr, nullptr, nullptr, 1);
+            if (parse_rc != LDAP_SUCCESS) { complete(make_ldap_error(parse_rc), {}); return; }
             bind_result result{ldap_rc};
-            if (ldap_rc != LDAP_SUCCESS) {
-                complete(make_ldap_error(ldap_rc), std::move(result));
-            } else {
-                complete({}, std::move(result));
-            }
+            if (ldap_rc != LDAP_SUCCESS) complete(make_ldap_error(ldap_rc), std::move(result));
+            else complete({}, std::move(result));
         }
 
         void complete(std::error_code ec, bind_result result)
@@ -170,9 +129,7 @@ private:
         std::error_code ldap_error_from_handle() const
         {
             int rc = LDAP_OTHER;
-            if (ldap_get_option(connection_.native_handle(), LDAP_OPT_RESULT_CODE, &rc) != LDAP_OPT_SUCCESS) {
-                rc = LDAP_OTHER;
-            }
+            if (ldap_get_option(connection_.native_handle(), LDAP_OPT_RESULT_CODE, &rc) != LDAP_SUCCESS) rc = LDAP_OTHER;
             return make_ldap_error(rc);
         }
 
@@ -187,9 +144,7 @@ private:
     class search_operation : public std::enable_shared_from_this<search_operation<Handler>> {
     public:
         search_operation(connection& connection, Handler&& handler, search_request request)
-            : connection_(connection), handler_(std::forward<Handler>(handler)), request_(std::move(request))
-        {
-        }
+            : connection_(connection), handler_(std::forward<Handler>(handler)), request_(std::move(request)) {}
 
         void start()
         {
@@ -201,14 +156,8 @@ private:
         void start_on_executor()
         {
             const auto ec = connection_.ensure_connected();
-            if (ec == make_error_code(errc::connection_in_progress)) {
-                wait_for_connect();
-                return;
-            }
-            if (ec) {
-                complete(ec, {});
-                return;
-            }
+            if (ec == make_error_code(errc::connection_in_progress)) { wait_for_connect(); return; }
+            if (ec) { complete(ec, {}); return; }
             submit_search();
         }
 
@@ -218,18 +167,11 @@ private:
             connection_.descriptor().async_wait(
                 boost::asio::posix::stream_descriptor::wait_write,
                 [self](const boost::system::error_code& ec) mutable {
-                    if (ec) {
-                        self->complete(std::error_code(ec.value(), std::system_category()), {});
-                        return;
-                    }
+                    if (ec) { self->complete(std::error_code(ec.value(), std::system_category()), {}); return; }
                     const auto connect_ec = self->connection_.finish_connect();
-                    if (connect_ec == make_error_code(errc::connection_in_progress)) {
-                        self->wait_for_connect();
-                    } else if (connect_ec) {
-                        self->complete(connect_ec, {});
-                    } else {
-                        self->submit_search();
-                    }
+                    if (connect_ec == make_error_code(errc::connection_in_progress)) self->wait_for_connect();
+                    else if (connect_ec) self->complete(connect_ec, {});
+                    else self->submit_search();
                 });
         }
 
@@ -237,31 +179,15 @@ private:
         {
             std::vector<char*> attrs;
             attrs.reserve(request_.attributes.size() + 1);
-            for (auto& attribute : request_.attributes) {
-                attrs.push_back(const_cast<char*>(attribute.c_str()));
-            }
-            if (!attrs.empty()) {
-                attrs.push_back(nullptr);
-            }
+            for (auto& attribute : request_.attributes) attrs.push_back(const_cast<char*>(attribute.c_str()));
+            if (!attrs.empty()) attrs.push_back(nullptr);
 
             int msgid = -1;
-            const int rc = ldap_search_ext(
-                connection_.native_handle(),
-                request_.base_dn.c_str(),
-                static_cast<int>(request_.scope),
-                request_.filter.c_str(),
-                attrs.empty() ? nullptr : attrs.data(),
-                0,
-                nullptr,
-                nullptr,
-                nullptr,
-                0,
-                &msgid);
-            if (rc != LDAP_SUCCESS) {
-                complete(make_ldap_error(rc), {});
-                return;
-            }
-
+            const int rc = ldap_search_ext(connection_.native_handle(), request_.base_dn.c_str(),
+                                           static_cast<int>(request_.scope), request_.filter.c_str(),
+                                           attrs.empty() ? nullptr : attrs.data(), 0, nullptr, nullptr,
+                                           nullptr, 0, &msgid);
+            if (rc != LDAP_SUCCESS) { complete(make_ldap_error(rc), {}); return; }
             msgid_ = msgid;
             wait_for_result();
         }
@@ -272,11 +198,8 @@ private:
             connection_.descriptor().async_wait(
                 boost::asio::posix::stream_descriptor::wait_read,
                 [self](const boost::system::error_code& ec) mutable {
-                    if (ec) {
-                        self->complete(std::error_code(ec.value(), std::system_category()), {});
-                    } else {
-                        self->consume_result();
-                    }
+                    if (ec) self->complete(std::error_code(ec.value(), std::system_category()), {});
+                    else self->consume_result();
                 });
         }
 
@@ -285,58 +208,30 @@ private:
             LDAPMessage* message = nullptr;
             timeval timeout{0, 0};
             const int rc = ldap_result(connection_.native_handle(), msgid_, LDAP_MSG_ONE, &timeout, &message);
-            if (rc == 0) {
-                wait_for_result();
-                return;
-            }
-            if (rc == -1) {
-                complete(ldap_error_from_handle(), {});
-                return;
-            }
-            if (!message) {
-                complete(make_error_code(errc::ldap_error), {});
-                return;
-            }
+            if (rc == 0) { wait_for_result(); return; }
+            if (rc == -1) { complete(ldap_error_from_handle(), {}); return; }
+            if (!message) { complete(make_error_code(errc::ldap_error), {}); return; }
 
             if (rc == LDAP_RES_SEARCH_ENTRY) {
                 search_entry entry;
                 const int parse_rc = parse_entry(message, entry);
                 ldap_msgfree(message);
-                if (parse_rc != LDAP_SUCCESS) {
-                    complete(make_ldap_error(parse_rc), {});
-                    return;
-                }
+                if (parse_rc != LDAP_SUCCESS) { complete(make_ldap_error(parse_rc), {}); return; }
                 result_.entries.push_back(std::move(entry));
                 wait_for_result();
                 return;
             }
 
             int ldap_rc = LDAP_OTHER;
-            const int parse_rc = ldap_parse_result(
-                connection_.native_handle(), message, &ldap_rc,
-                nullptr, nullptr, nullptr, nullptr, 1);
-            if (parse_rc != LDAP_SUCCESS) {
-                complete(make_ldap_error(parse_rc), {});
-                return;
-            }
-
+            const int parse_rc = ldap_parse_result(connection_.native_handle(), message, &ldap_rc,
+                                                   nullptr, nullptr, nullptr, nullptr, 1);
+            if (parse_rc != LDAP_SUCCESS) { complete(make_ldap_error(parse_rc), {}); return; }
             result_.ldap_result = ldap_rc;
-            if (ldap_rc != LDAP_SUCCESS) {
-                complete(make_ldap_error(ldap_rc), std::move(result_));
-            } else {
-                complete({}, std::move(result_));
-            }
+            if (ldap_rc != LDAP_SUCCESS) complete(make_ldap_error(ldap_rc), std::move(result_));
+            else complete({}, std::move(result_));
         }
 
-        static int parse_entry(LDAPMessage* message, search_entry& entry)
-        {
-            char* dn = ldap_get_dn(nullptr, message);
-            // ldap_get_dn requires a valid LDAP handle; the caller supplies it below.
-            (void)dn;
-            return LDAP_PARAM_ERROR;
-        }
-
-        int parse_entry_with_handle(LDAPMessage* message, search_entry& entry)
+        int parse_entry(LDAPMessage* message, search_entry& entry)
         {
             char* dn = ldap_get_dn(connection_.native_handle(), message);
             if (!dn) return LDAP_DECODING_ERROR;
@@ -348,17 +243,16 @@ private:
             while (attribute) {
                 search_attribute output;
                 output.name = attribute;
-                struct berval** values = ldap_get_values_len(
-                    connection_.native_handle(), message, attribute);
+                struct berval** values = ldap_get_values_len(connection_.native_handle(), message, attribute);
                 if (values) {
-                    for (berval** value = values; *value; ++value) {
+                    for (berval** value = values; *value; ++value)
                         output.values.emplace_back((*value)->bv_val, (*value)->bv_len);
-                    }
                     ldap_value_free_len(values);
                 }
+                char* next = ldap_next_attribute(connection_.native_handle(), message, ber);
                 ldap_memfree(attribute);
                 entry.attributes.push_back(std::move(output));
-                attribute = ldap_next_attribute(connection_.native_handle(), message, ber);
+                attribute = next;
             }
             if (ber) ber_free(ber, 0);
             return LDAP_SUCCESS;
@@ -374,9 +268,7 @@ private:
         std::error_code ldap_error_from_handle() const
         {
             int rc = LDAP_OTHER;
-            if (ldap_get_option(connection_.native_handle(), LDAP_OPT_RESULT_CODE, &rc) != LDAP_OPT_SUCCESS) {
-                rc = LDAP_OTHER;
-            }
+            if (ldap_get_option(connection_.native_handle(), LDAP_OPT_RESULT_CODE, &rc) != LDAP_SUCCESS) rc = LDAP_OTHER;
             return make_ldap_error(rc);
         }
 
