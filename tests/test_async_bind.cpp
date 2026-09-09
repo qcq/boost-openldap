@@ -1,7 +1,11 @@
 #include <boost_openldap.hpp>
 
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/use_awaitable.hpp>
+#include <boost/asio/use_future.hpp>
 #include <boost/asio/write.hpp>
 
 #include <array>
@@ -10,6 +14,7 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <system_error>
 #include <utility>
 
 namespace asio = boost::asio;
@@ -96,16 +101,19 @@ void test_successful_bind()
         "ldap://127.0.0.1:" + std::to_string(server.port()));
 
     bool called = false;
+    bool inside_initiation = true;
     std::error_code callback_error;
     boost_openldap::bind_result callback_result;
 
     client.async_bind(
         {"cn=test,dc=example,dc=com", "secret"},
         [&](std::error_code ec, boost_openldap::bind_result result) {
+            assert(!inside_initiation);
             called = true;
             callback_error = ec;
             callback_result = result;
         });
+    inside_initiation = false;
 
     io.run();
 
@@ -146,9 +154,62 @@ void test_invalid_credentials()
     assert(!server.error());
 }
 
+void test_use_future()
+{
+    asio::io_context io;
+    fake_ldap_server server(io, 0);
+    server.start();
+
+    boost_openldap::client client(
+        io,
+        "ldap://127.0.0.1:" + std::to_string(server.port()));
+
+    auto future = client.async_bind(
+        {"cn=test,dc=example,dc=com", "secret"},
+        asio::use_future);
+
+    io.run();
+
+    const auto result = future.get();
+    assert(result.ldap_result == 0);
+    assert(!server.error());
+}
+
+asio::awaitable<void> bind_coroutine(
+    boost_openldap::client& client,
+    bool& completed)
+{
+    const auto result = co_await client.async_bind(
+        {"cn=test,dc=example,dc=com", "secret"},
+        asio::use_awaitable);
+    completed = result.ldap_result == 0;
+    co_return;
+}
+
+void test_use_awaitable()
+{
+    asio::io_context io;
+    fake_ldap_server server(io, 0);
+    server.start();
+
+    boost_openldap::client client(
+        io,
+        "ldap://127.0.0.1:" + std::to_string(server.port()));
+
+    bool completed = false;
+    asio::co_spawn(io, bind_coroutine(client, completed), asio::detached);
+
+    io.run();
+
+    assert(completed);
+    assert(!server.error());
+}
+
 int main()
 {
     test_successful_bind();
     test_invalid_credentials();
+    test_use_future();
+    test_use_awaitable();
     std::cout << "async bind tests passed\n";
 }
