@@ -29,8 +29,7 @@ connection::connection(boost::asio::io_context& io, const char* uri)
     }
 
 #ifdef LDAP_OPT_CONNECT_ASYNC
-    int async_connect = LDAP_OPT_ON;
-    if (ldap_set_option(ldap_, LDAP_OPT_CONNECT_ASYNC, &async_connect) != LDAP_OPT_SUCCESS) {
+    if (ldap_set_option(ldap_, LDAP_OPT_CONNECT_ASYNC, LDAP_OPT_ON) != LDAP_OPT_SUCCESS) {
         ldap_unbind_ext_s(ldap_, nullptr, nullptr);
         ldap_ = nullptr;
         initialization_error_ = make_error_code(errc::ldap_error);
