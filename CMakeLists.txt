@@ -36,6 +36,13 @@ target_compile_options(boost_openldap PRIVATE
 add_executable(simple_bind examples/simple_bind.cpp)
 target_link_libraries(simple_bind PRIVATE boost_openldap)
 
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(test_async_bind tests/test_async_bind.cpp)
+    target_link_libraries(test_async_bind PRIVATE boost_openldap)
+    add_test(NAME async_bind COMMAND test_async_bind)
+endif()
+
 include(GNUInstallDirs)
 
 install(TARGETS boost_openldap
