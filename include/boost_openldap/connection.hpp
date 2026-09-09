@@ -22,10 +22,13 @@ public:
     // libldap owns its descriptor. Asio monitors a duplicated descriptor.
     boost::asio::posix::stream_descriptor& descriptor() noexcept { return descriptor_; }
 
-    // Starts the libldap connection and prepares the descriptor for Asio.
+    // Starts or resumes the libldap connection.
     std::error_code ensure_connected();
+    std::error_code finish_connect();
 
 private:
+    std::error_code attach_descriptor();
+
     boost::asio::io_context& io_;
     LDAP* ldap_ = nullptr;
     boost::asio::posix::stream_descriptor descriptor_;
