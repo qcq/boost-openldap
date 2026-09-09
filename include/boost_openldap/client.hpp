@@ -24,6 +24,9 @@ public:
     template <typename CompletionToken>
     auto async_bind(bind_request request, CompletionToken&& token);
 
+    template <typename CompletionToken>
+    auto async_search(search_request request, CompletionToken&& token);
+
 private:
     struct implementation;
     std::unique_ptr<implementation> impl_;
