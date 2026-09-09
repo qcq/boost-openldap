@@ -10,6 +10,7 @@ enum class errc {
     ldap_error = -2,
     operation_cancelled = -3,
     operation_timeout = -4,
+    connection_in_progress = -5,
 };
 
 const std::error_category& error_category() noexcept;
