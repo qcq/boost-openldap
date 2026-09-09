@@ -43,7 +43,7 @@ The same async operation will later support Asio completion tokens such as `asio
 
 ## Status
 
-Early development. The first milestone is the asynchronous operation framework and simple Bind operation.
+The first milestone now contains an asynchronous simple Bind operation, OpenLDAP message-id result handling, CTest coverage with a local fake LDAP server, and GitHub Actions CI.
 
 ## Dependencies
 

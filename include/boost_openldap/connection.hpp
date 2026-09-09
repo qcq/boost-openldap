@@ -1,5 +1,6 @@
 #pragma once
 
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/posix/stream_descriptor.hpp>
 #include <ldap.h>
@@ -17,7 +18,7 @@ public:
     connection& operator=(const connection&) = delete;
 
     LDAP* native_handle() const noexcept { return ldap_; }
-    boost::asio::any_io_executor executor() const noexcept { return descriptor_.get_executor(); }
+    boost::asio::any_io_executor executor() noexcept { return descriptor_.get_executor(); }
 
     // libldap owns its descriptor. Asio monitors a duplicated descriptor.
     boost::asio::posix::stream_descriptor& descriptor() noexcept { return descriptor_; }
