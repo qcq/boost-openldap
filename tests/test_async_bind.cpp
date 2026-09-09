@@ -15,6 +15,7 @@
 #include <optional>
 #include <string>
 #include <system_error>
+#include <tuple>
 #include <utility>
 
 namespace asio = boost::asio;
@@ -171,7 +172,8 @@ void test_use_future()
     io.run();
 
     const auto result = future.get();
-    assert(result.ldap_result == 0);
+    assert(!std::get<0>(result));
+    assert(std::get<1>(result).ldap_result == 0);
     assert(!server.error());
 }
 
@@ -182,7 +184,7 @@ asio::awaitable<void> bind_coroutine(
     const auto result = co_await client.async_bind(
         {"cn=test,dc=example,dc=com", "secret"},
         asio::use_awaitable);
-    completed = result.ldap_result == 0;
+    completed = std::get<1>(result).ldap_result == 0 && !std::get<0>(result);
     co_return;
 }
 
