@@ -1,9 +1,7 @@
 #include "boost_openldap/connection.hpp"
-
-#include <boost/asio/error.hpp>
+#include "boost_openldap/error.hpp"
 
 #include <cerrno>
-#include <cstring>
 #include <system_error>
 
 #ifndef _WIN32
@@ -18,6 +16,7 @@ connection::connection(boost::asio::io_context& io, const char* uri)
     const int rc = ldap_initialize(&ldap_, uri);
     if (rc != LDAP_SUCCESS) {
         ldap_ = nullptr;
+        initialization_error_ = make_ldap_error(rc);
         return;
     }
 
@@ -25,8 +24,24 @@ connection::connection(boost::asio::io_context& io, const char* uri)
     if (ldap_set_option(ldap_, LDAP_OPT_PROTOCOL_VERSION, &version) != LDAP_OPT_SUCCESS) {
         ldap_unbind_ext_s(ldap_, nullptr, nullptr);
         ldap_ = nullptr;
+        initialization_error_ = make_error_code(errc::ldap_error);
         return;
     }
+
+#ifdef LDAP_OPT_CONNECT_ASYNC
+    int async_connect = LDAP_OPT_ON;
+    if (ldap_set_option(ldap_, LDAP_OPT_CONNECT_ASYNC, &async_connect) != LDAP_OPT_SUCCESS) {
+        ldap_unbind_ext_s(ldap_, nullptr, nullptr);
+        ldap_ = nullptr;
+        initialization_error_ = make_error_code(errc::ldap_error);
+        return;
+    }
+#endif
+
+    // OpenLDAP uses the network timeout while polling an asynchronous connect.
+    // A short default keeps a failed connection from blocking indefinitely.
+    struct timeval network_timeout {30, 0};
+    ldap_set_option(ldap_, LDAP_OPT_NETWORK_TIMEOUT, &network_timeout);
 }
 
 connection::~connection()
@@ -37,10 +52,54 @@ connection::~connection()
     }
 }
 
-std::error_code connection::initialize()
+std::error_code connection::ensure_connected()
+{
+    if (initialization_error_) {
+        return initialization_error_;
+    }
+    if (!ldap_) {
+        return make_error_code(errc::invalid_handle);
+    }
+    if (descriptor_.is_open()) {
+        return {};
+    }
+
+    const int rc = ldap_connect(ldap_, nullptr);
+    if (rc == LDAP_SUCCESS) {
+        return attach_descriptor();
+    }
+
+    if (rc == LDAP_X_CONNECTING) {
+        const auto ec = attach_descriptor();
+        if (ec) {
+            return ec;
+        }
+        return make_error_code(errc::connection_in_progress);
+    }
+
+    return make_ldap_error(rc);
+}
+
+std::error_code connection::finish_connect()
 {
     if (!ldap_) {
         return make_error_code(errc::invalid_handle);
+    }
+
+    const int rc = ldap_connect(ldap_, nullptr);
+    if (rc == LDAP_SUCCESS) {
+        return {};
+    }
+    if (rc == LDAP_X_CONNECTING) {
+        return make_error_code(errc::connection_in_progress);
+    }
+    return make_ldap_error(rc);
+}
+
+std::error_code connection::attach_descriptor()
+{
+    if (descriptor_.is_open()) {
+        return {};
     }
 
     int fd = -1;
@@ -50,9 +109,8 @@ std::error_code connection::initialize()
     }
 
 #ifndef _WIN32
-    // Never give libldap's descriptor directly to Asio: stream_descriptor
-    // assumes ownership and may close it. Monitor a duplicated descriptor
-    // instead; both descriptors refer to the same underlying socket.
+    // libldap owns the original descriptor. Asio monitors a duplicate so
+    // that closing stream_descriptor never closes libldap's socket.
     const int monitored_fd = ::dup(fd);
     if (monitored_fd < 0) {
         return std::error_code(errno, std::generic_category());
@@ -66,7 +124,6 @@ std::error_code connection::initialize()
     }
     return {};
 #else
-    // POSIX stream_descriptor is intentionally used in the first milestone.
     return make_error_code(errc::ldap_error);
 #endif
 }
