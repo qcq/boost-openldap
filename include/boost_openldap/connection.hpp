@@ -17,17 +17,19 @@ public:
     connection& operator=(const connection&) = delete;
 
     LDAP* native_handle() const noexcept { return ldap_; }
+    boost::asio::any_io_executor executor() const noexcept { return descriptor_.get_executor(); }
 
-    // Returns a duplicated descriptor suitable for Asio monitoring.
-    // libldap retains ownership of its original descriptor.
+    // libldap owns its descriptor. Asio monitors a duplicated descriptor.
     boost::asio::posix::stream_descriptor& descriptor() noexcept { return descriptor_; }
 
-    std::error_code initialize();
+    // Starts the libldap connection and prepares the descriptor for Asio.
+    std::error_code ensure_connected();
 
 private:
     boost::asio::io_context& io_;
     LDAP* ldap_ = nullptr;
     boost::asio::posix::stream_descriptor descriptor_;
+    std::error_code initialization_error_;
 };
 
 } // namespace boost_openldap
