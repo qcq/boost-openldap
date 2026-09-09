@@ -2,6 +2,8 @@
 
 #include <boost/asio/async_result.hpp>
 
+#include "boost_openldap/impl/client_impl.hpp"
+
 namespace boost_openldap {
 
 template <typename CompletionToken>
