@@ -4,9 +4,11 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/write.hpp>
 
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -19,6 +21,20 @@ public:
         : acceptor_(io, tcp::endpoint(tcp::v4(), 0)),
           result_code_(result_code)
     {
+        response_[0] = 0x30;
+        response_[1] = 0x0c;
+        response_[2] = 0x02;
+        response_[3] = 0x01;
+        response_[4] = 0x01;
+        response_[5] = 0x61;
+        response_[6] = 0x07;
+        response_[7] = 0x0a;
+        response_[8] = 0x01;
+        response_[9] = static_cast<std::uint8_t>(result_code_);
+        response_[10] = 0x04;
+        response_[11] = 0x00;
+        response_[12] = 0x04;
+        response_[13] = 0x00;
     }
 
     unsigned short port() const
@@ -51,20 +67,9 @@ public:
 private:
     void send_bind_response()
     {
-        // LDAPMessage:
-        //   SEQUENCE { messageID=1, bindResponse(resultCode, empty DN, empty diagnostic) }
-        const auto rc = static_cast<std::uint8_t>(result_code_);
-        const std::array<unsigned char, 14> response{
-            0x30, 0x0c,
-            0x02, 0x01, 0x01,
-            0x61, 0x07,
-            0x0a, 0x01, rc,
-            0x04, 0x00,
-            0x04, 0x00};
-
         asio::async_write(
             *socket_,
-            asio::buffer(response),
+            asio::buffer(response_),
             [this](const boost::system::error_code& ec, std::size_t) {
                 if (ec) {
                     error_ = ec;
@@ -75,6 +80,7 @@ private:
     tcp::acceptor acceptor_;
     std::optional<tcp::socket> socket_;
     std::array<unsigned char, 4096> request_buffer_{};
+    std::array<unsigned char, 14> response_{};
     int result_code_;
     boost::system::error_code error_;
 };
@@ -106,6 +112,7 @@ void test_successful_bind()
     assert(called);
     assert(!callback_error);
     assert(callback_result.ldap_result == 0);
+    assert(!server.error());
 }
 
 void test_invalid_credentials()
@@ -136,6 +143,7 @@ void test_invalid_credentials()
     assert(callback_error.category() == boost_openldap::ldap_error_category());
     assert(callback_error.value() == 49);
     assert(callback_result.ldap_result == 49);
+    assert(!server.error());
 }
 
 int main()
