@@ -15,7 +15,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build g++ libboost-system-dev libldap2-dev pkg-config
+          sudo apt-get install -y cmake ninja-build g++ libboost-system-dev libldap2-dev python3-ldap slapd pkg-config
 
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
@@ -23,5 +23,8 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
-      - name: Test
+      - name: Test fake LDAP protocol suite
         run: ctest --test-dir build --output-on-failure
+
+      - name: Test against real slapd with python-ldap
+        run: python3 tests/integration/test_real_ldap.py build/test_real_ldap
