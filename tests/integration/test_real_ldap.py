@@ -93,8 +93,20 @@ def main() -> int:
         with open(config_path, "w", encoding="utf-8") as config:
             config.write(CONFIG.format(directory=db_dir))
 
+        # The CI runner owns the temporary test tree. Explicitly keep slapd in
+        # that same uid/gid instead of dropping privileges to the system
+        # "openldap" account, which cannot traverse the runner's temp directory.
+        slapd_uid = str(os.getuid())
+        slapd_gid = str(os.getgid())
         server = subprocess.Popen(
-            ["slapd", "-f", config_path, "-h", URI, "-d", "1"],
+            [
+                "slapd",
+                "-f", config_path,
+                "-h", URI,
+                "-u", slapd_uid,
+                "-g", slapd_gid,
+                "-d", "1",
+            ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
