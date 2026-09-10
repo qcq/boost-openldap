@@ -51,15 +51,32 @@ LDIF_ALICE = [
 ]
 
 
-def wait_for_port(host: str, port: int, timeout: float = 10.0) -> None:
+def server_diagnostics(server: subprocess.Popen) -> str:
+    returncode = server.poll()
+    stderr = server.stderr.read() if server.stderr else ""
+    stdout = server.stdout.read() if server.stdout else ""
+    details = [f"slapd return code: {returncode}"]
+    if stderr:
+        details.append("slapd stderr:\n" + stderr)
+    if stdout:
+        details.append("slapd stdout:\n" + stdout)
+    return "\n".join(details)
+
+
+def wait_for_port(server: subprocess.Popen, host: str, port: int, timeout: float = 10.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
+        returncode = server.poll()
+        if returncode is not None:
+            raise RuntimeError("slapd exited before listening\n" + server_diagnostics(server))
+
         try:
             with socket.create_connection((host, port), timeout=0.25):
                 return
         except OSError:
             time.sleep(0.05)
-    raise RuntimeError("slapd did not start listening in time")
+
+    raise RuntimeError("slapd did not start listening in time\n" + server_diagnostics(server))
 
 
 def main() -> int:
@@ -77,14 +94,14 @@ def main() -> int:
             config.write(CONFIG.format(directory=db_dir))
 
         server = subprocess.Popen(
-            ["slapd", "-f", config_path, "-h", URI, "-d", "0"],
+            ["slapd", "-f", config_path, "-h", URI, "-d", "1"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
         )
 
         try:
-            wait_for_port("127.0.0.1", 1389)
+            wait_for_port(server, "127.0.0.1", 1389)
 
             # python-ldap is the independent reference client. It exercises the
             # same OpenLDAP client library family through Python before the C++
