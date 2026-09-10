@@ -23,10 +23,6 @@ include /etc/ldap/schema/inetorgperson.schema
 pidfile /tmp/boost-openldap-slapd.pid
 argsfile /tmp/boost-openldap-slapd.args
 
-allow bind_v2
-
-access to * by * read
-
 database mdb
 maxsize 1073741824
 suffix \"{BASE_DN}\"
@@ -90,7 +86,7 @@ def main() -> int:
         try:
             wait_for_port("127.0.0.1", 1389)
 
-            # python-ldap is the independent reference client.  It exercises the
+            # python-ldap is the independent reference client. It exercises the
             # same OpenLDAP client library family through Python before the C++
             # client talks to the exact same slapd instance.
             reference = ldap.initialize(URI)
