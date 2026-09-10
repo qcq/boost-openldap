@@ -41,6 +41,9 @@ if(BUILD_TESTING)
     add_executable(test_async_bind tests/test_async_bind.cpp)
     target_link_libraries(test_async_bind PRIVATE boost_openldap)
     add_test(NAME async_bind COMMAND test_async_bind)
+
+    add_executable(test_real_ldap tests/test_real_ldap.cpp)
+    target_link_libraries(test_real_ldap PRIVATE boost_openldap)
 endif()
 
 include(GNUInstallDirs)
