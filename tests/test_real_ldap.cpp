@@ -33,9 +33,15 @@ int main(int argc, char* argv[])
             }
 
             bind_ok = true;
+
+            boost_openldap::search_request request{
+                "dc=example,dc=com",
+                boost_openldap::search_scope::subtree,
+                "(objectClass=inetOrgPerson)",
+                {"cn", "mail"}};
+
             client.async_search(
-                {"dc=example,dc=com", boost_openldap::search_scope::subtree,
-                 "(objectClass=inetOrgPerson)", {"cn", "mail"}},
+                std::move(request),
                 [&](std::error_code search_ec, boost_openldap::search_result result) {
                     if (search_ec) {
                         std::cerr << "real LDAP search failed: " << search_ec.category().name()
