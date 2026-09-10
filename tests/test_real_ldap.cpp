@@ -36,8 +36,8 @@ int main(int argc, char* argv[])
 
             boost_openldap::search_request request{
                 "dc=example,dc=com",
-                boost_openldap::search_scope::subtree,
                 "(objectClass=inetOrgPerson)",
+                boost_openldap::search_scope::subtree,
                 {"cn", "mail"}};
 
             client.async_search(
