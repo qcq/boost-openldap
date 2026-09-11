@@ -87,15 +87,18 @@ def main() -> int:
     cpp_test = os.path.abspath(sys.argv[1])
 
     with tempfile.TemporaryDirectory(prefix="boost-openldap-slapd-") as tmp:
+        # slapd may switch to the openldap service account while parsing the
+        # legacy slapd.conf, so the service account must be able to traverse the
+        # temporary tree and read the configuration. The database itself must
+        # also be writable by that account.
+        os.chmod(tmp, 0o755)
         db_dir = os.path.join(tmp, "db")
-        os.mkdir(db_dir)
+        os.mkdir(db_dir, 0o777)
         config_path = os.path.join(tmp, "slapd.conf")
         with open(config_path, "w", encoding="utf-8") as config:
             config.write(CONFIG.format(directory=db_dir))
+        os.chmod(config_path, 0o644)
 
-        # The CI runner owns the temporary test tree. Explicitly keep slapd in
-        # that same uid/gid instead of dropping privileges to the system
-        # "openldap" account, which cannot traverse the runner's temp directory.
         slapd_uid = str(os.getuid())
         slapd_gid = str(os.getgid())
         server = subprocess.Popen(
